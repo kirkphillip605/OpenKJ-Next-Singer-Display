@@ -7,7 +7,8 @@ import platform
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget,
     QFileDialog, QMessageBox, QSpinBox, QHBoxLayout, QPushButton,
-    QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect, QMenu
+    QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect, QMenu,
+    QFormLayout
 )
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime, QEvent
 from PyQt6.QtGui import QFont, QPixmap, QColor, QAction, QCursor
@@ -62,66 +63,63 @@ class ConfigWindow(QMainWindow):
     def initUI(self):
         layout = QVBoxLayout()
         
-        # Logo Path Configuration
-        logo_path_layout = QHBoxLayout()
-        logo_label = QLabel("Logo:")
-        self.logo_path_label_display = QLabel(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
-        logo_button = QPushButton("Browse")
-        logo_button.clicked.connect(self.browse_logo)
-        logo_path_layout.addWidget(logo_label)
-        logo_path_layout.addWidget(self.logo_path_label_display)
-        logo_path_layout.addWidget(logo_button)
-        layout.addLayout(logo_path_layout)
+        # Use QFormLayout for uniform label and field alignment
+        form_layout = QFormLayout()
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
         # Rotation Title Configuration
-        title_layout = QHBoxLayout()
-        title_label = QLabel("Rotation Title:")
         self.title_input = QLineEdit(self.display_title)
-        title_layout.addWidget(title_label)
-        title_layout.addWidget(self.title_input)
-        layout.addLayout(title_layout)
+        self.title_input.setMinimumWidth(300)
+        form_layout.addRow("Rotation Title:", self.title_input)
+        
+        # Venue Name Configuration
+        self.venue_name_input = QLineEdit(self.venue_name)
+        self.venue_name_input.setMinimumWidth(300)
+        form_layout.addRow("Venue Name:", self.venue_name_input)
+        
+        # Logo Path Configuration
+        logo_widget = QWidget()
+        logo_layout = QHBoxLayout(logo_widget)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        self.logo_path_label_display = QLabel(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
+        self.logo_path_label_display.setMinimumWidth(200)
+        logo_button = QPushButton("Browse")
+        logo_button.clicked.connect(self.browse_logo)
+        logo_layout.addWidget(self.logo_path_label_display, 1)
+        logo_layout.addWidget(logo_button)
+        form_layout.addRow("Logo:", logo_widget)
+        
+        # Database Path Configuration
+        db_widget = QWidget()
+        db_layout = QHBoxLayout(db_widget)
+        db_layout.setContentsMargins(0, 0, 0, 0)
+        self.db_path_label_display = QLabel(self.db_path if self.db_path else "No database selected")
+        self.db_path_label_display.setWordWrap(True)
+        self.db_path_label_display.setMinimumWidth(200)
+        locate_db_button = QPushButton("Locate OpenKJ DB")
+        locate_db_button.clicked.connect(self.locate_db)
+        db_layout.addWidget(self.db_path_label_display, 1)
+        db_layout.addWidget(locate_db_button)
+        form_layout.addRow("OpenKJ Database:", db_widget)
         
         # Number of Up Next Configuration
-        num_singers_layout = QHBoxLayout()
-        num_singers_label = QLabel("Number of Up Next:")
         self.num_singers_spinbox = QSpinBox()
         self.num_singers_spinbox.setValue(self.num_singers)
         self.num_singers_spinbox.setMinimum(1)
         self.num_singers_spinbox.setMaximum(6)
-        num_singers_layout.addWidget(num_singers_label)
-        num_singers_layout.addWidget(self.num_singers_spinbox)
-        layout.addLayout(num_singers_layout)
-        
-        # Database Path Configuration
-        db_path_layout = QHBoxLayout()
-        db_label = QLabel("OpenKJ Database:")
-        self.db_path_label_display = QLabel(self.db_path if self.db_path else "No database selected")
-        self.db_path_label_display.setWordWrap(True)
-        locate_db_button = QPushButton("Locate OpenKJ DB")
-        locate_db_button.clicked.connect(self.locate_db)
-        db_path_layout.addWidget(db_label)
-        db_path_layout.addWidget(self.db_path_label_display)
-        db_path_layout.addWidget(locate_db_button)
-        layout.addLayout(db_path_layout)
+        self.num_singers_spinbox.setMinimumWidth(100)
+        form_layout.addRow("Number of Up Next:", self.num_singers_spinbox)
         
         # Refresh Interval Configuration
-        refresh_layout = QHBoxLayout()
-        refresh_label = QLabel("Refresh Interval (seconds):")
         self.refresh_interval_spinbox = QSpinBox()
         self.refresh_interval_spinbox.setValue(self.refresh_interval)
         self.refresh_interval_spinbox.setMinimum(5)
         self.refresh_interval_spinbox.setMaximum(20)
-        refresh_layout.addWidget(refresh_label)
-        refresh_layout.addWidget(self.refresh_interval_spinbox)
-        layout.addLayout(refresh_layout)
+        self.refresh_interval_spinbox.setMinimumWidth(100)
+        form_layout.addRow("Refresh Interval (seconds):", self.refresh_interval_spinbox)
 
-        # Venue Name Configuration (optional, keep for compatibility)
-        venue_name_layout = QHBoxLayout()
-        venue_name_label = QLabel("Venue Name:")
-        self.venue_name_input = QLineEdit(self.venue_name)
-        venue_name_layout.addWidget(venue_name_label)
-        venue_name_layout.addWidget(self.venue_name_input)
-        layout.addLayout(venue_name_layout)
+        layout.addLayout(form_layout)
 
         # Save Button
         save_button = QPushButton("Save Configuration")

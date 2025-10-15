@@ -3,33 +3,39 @@ import os
 import json
 import sqlite3
 import datetime
+import platform
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget,
     QFileDialog, QMessageBox, QSpinBox, QHBoxLayout, QPushButton,
-    QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect
+    QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect, QMenu
 )
-from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime
-from PyQt6.QtGui import QFont, QPixmap, QColor
+from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime, QEvent
+from PyQt6.QtGui import QFont, QPixmap, QColor, QAction, QCursor
 
 CONFIG_FILE = 'config.json.bak'
 DEFAULT_NUM_SINGERS = 5
 DEFAULT_CONFIG = {
     'db_path': None,
     'num_singers': DEFAULT_NUM_SINGERS,
-    'display_title': 'Singer Rotation',
+    'display_title': 'Karaoke Singer Rotation',
     'logo_path': None,
-    'venue_name': "Harry's Bar"
+    'venue_name': "Harry's Bar",
+    'refresh_interval': 5
 }
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
-            config_with_defaults = DEFAULT_CONFIG.copy()
-            config_with_defaults.update(config)
-            return config_with_defaults
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                config_with_defaults = DEFAULT_CONFIG.copy()
+                config_with_defaults.update(config)
+                return config_with_defaults
+        except (json.JSONDecodeError, Exception):
+            # Config is corrupted, return defaults
+            return DEFAULT_CONFIG.copy()
     else:
-        return DEFAULT_CONFIG
+        return DEFAULT_CONFIG.copy()
 
 def save_config(config):
     with open(CONFIG_FILE, 'w') as f:
@@ -49,52 +55,67 @@ class ConfigWindow(QMainWindow):
         self.display_title = config.get('display_title', DEFAULT_CONFIG['display_title'])
         self.logo_path = config.get('logo_path', DEFAULT_CONFIG['logo_path'])
         self.venue_name = config.get('venue_name', DEFAULT_CONFIG['venue_name'])
+        self.refresh_interval = config.get('refresh_interval', DEFAULT_CONFIG['refresh_interval'])
 
         self.initUI()
 
     def initUI(self):
         layout = QVBoxLayout()
-        # Database Path Configuration
-        db_path_layout = QHBoxLayout()
-        db_label = QLabel("Database File:")
-        self.db_path_label_display = QLabel(self.db_path if self.db_path else "No database selected")
-        db_button = QPushButton("Browse")
-        db_button.clicked.connect(self.browse_db)
-        db_path_layout.addWidget(db_label)
-        db_path_layout.addWidget(self.db_path_label_display)
-        db_path_layout.addWidget(db_button)
-        layout.addLayout(db_path_layout)
-
-        # Number of Singers Configuration
-        num_singers_layout = QHBoxLayout()
-        num_singers_label = QLabel("Number of 'Up Next' Singers to Display:")
-        self.num_singers_spinbox = QSpinBox()
-        self.num_singers_spinbox.setValue(self.num_singers)
-        self.num_singers_spinbox.setMinimum(1)
-        num_singers_layout.addWidget(num_singers_label)
-        num_singers_layout.addWidget(self.num_singers_spinbox)
-        layout.addLayout(num_singers_layout)
-
-        # Display Title Configuration
-        title_layout = QHBoxLayout()
-        title_label = QLabel("Display Title:")
-        self.title_input = QLineEdit(self.display_title)
-        title_layout.addWidget(title_label)
-        title_layout.addWidget(self.title_input)
-        layout.addLayout(title_layout)
-
+        
         # Logo Path Configuration
         logo_path_layout = QHBoxLayout()
-        logo_label = QLabel("Logo Image:")
-        self.logo_path_label_display = QLabel(self.logo_path if self.logo_path else "No logo selected")
+        logo_label = QLabel("Logo:")
+        self.logo_path_label_display = QLabel(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
         logo_button = QPushButton("Browse")
         logo_button.clicked.connect(self.browse_logo)
         logo_path_layout.addWidget(logo_label)
         logo_path_layout.addWidget(self.logo_path_label_display)
         logo_path_layout.addWidget(logo_button)
         layout.addLayout(logo_path_layout)
+        
+        # Rotation Title Configuration
+        title_layout = QHBoxLayout()
+        title_label = QLabel("Rotation Title:")
+        self.title_input = QLineEdit(self.display_title)
+        title_layout.addWidget(title_label)
+        title_layout.addWidget(self.title_input)
+        layout.addLayout(title_layout)
+        
+        # Number of Up Next Configuration
+        num_singers_layout = QHBoxLayout()
+        num_singers_label = QLabel("Number of Up Next:")
+        self.num_singers_spinbox = QSpinBox()
+        self.num_singers_spinbox.setValue(self.num_singers)
+        self.num_singers_spinbox.setMinimum(1)
+        self.num_singers_spinbox.setMaximum(6)
+        num_singers_layout.addWidget(num_singers_label)
+        num_singers_layout.addWidget(self.num_singers_spinbox)
+        layout.addLayout(num_singers_layout)
+        
+        # Database Path Configuration
+        db_path_layout = QHBoxLayout()
+        db_label = QLabel("OpenKJ Database:")
+        self.db_path_label_display = QLabel(self.db_path if self.db_path else "No database selected")
+        self.db_path_label_display.setWordWrap(True)
+        locate_db_button = QPushButton("Locate OpenKJ DB")
+        locate_db_button.clicked.connect(self.locate_db)
+        db_path_layout.addWidget(db_label)
+        db_path_layout.addWidget(self.db_path_label_display)
+        db_path_layout.addWidget(locate_db_button)
+        layout.addLayout(db_path_layout)
+        
+        # Refresh Interval Configuration
+        refresh_layout = QHBoxLayout()
+        refresh_label = QLabel("Refresh Interval (seconds):")
+        self.refresh_interval_spinbox = QSpinBox()
+        self.refresh_interval_spinbox.setValue(self.refresh_interval)
+        self.refresh_interval_spinbox.setMinimum(5)
+        self.refresh_interval_spinbox.setMaximum(20)
+        refresh_layout.addWidget(refresh_label)
+        refresh_layout.addWidget(self.refresh_interval_spinbox)
+        layout.addLayout(refresh_layout)
 
-        # Venue Name Configuration
+        # Venue Name Configuration (optional, keep for compatibility)
         venue_name_layout = QHBoxLayout()
         venue_name_label = QLabel("Venue Name:")
         self.venue_name_input = QLineEdit(self.venue_name)
@@ -125,6 +146,32 @@ class ConfigWindow(QMainWindow):
             self.logo_path = file_path
             self.logo_path_label_display.setText(os.path.basename(self.logo_path))
 
+    def locate_db(self):
+        """Attempt to automatically locate the OpenKJ database based on OS"""
+        system = platform.system()
+        potential_path = None
+        
+        if system == "Darwin":  # macOS
+            potential_path = os.path.expanduser("~/Library/Application Support/OpenKJ/OpenKJ/openkj.sqlite")
+        elif system == "Windows":
+            potential_path = os.path.expandvars(r"%USERPROFILE%\AppData\Roaming\OpenKJ\OpenKJ\openkj.sqlite")
+        
+        if potential_path and os.path.exists(potential_path):
+            self.db_path = potential_path
+            self.db_path_label_display.setText(self.db_path)
+            QMessageBox.information(self, "Success", f"Database found at:\n{potential_path}")
+        else:
+            # Database not found, show browse dialog
+            QMessageBox.information(self, "Not Found", 
+                                  "Could not automatically locate the OpenKJ database.\n"
+                                  "Please select it manually.")
+            file_dialog = QFileDialog()
+            file_path, _ = file_dialog.getOpenFileName(self, "Select openkj.sqlite Database", "", 
+                                                       "SQLite Database (*.sqlite *.db)")
+            if file_path:
+                self.db_path = file_path
+                self.db_path_label_display.setText(self.db_path)
+
     def save_config(self):
         if not self.db_path:
             QMessageBox.warning(self, "Warning", "Please select a database file.")
@@ -133,11 +180,13 @@ class ConfigWindow(QMainWindow):
         self.num_singers = self.num_singers_spinbox.value()
         self.display_title = self.title_input.text()
         self.venue_name = self.venue_name_input.text()
+        self.refresh_interval = self.refresh_interval_spinbox.value()
         self.config['db_path'] = self.db_path
         self.config['num_singers'] = self.num_singers
         self.config['display_title'] = self.display_title
         self.config['logo_path'] = self.logo_path
         self.config['venue_name'] = self.venue_name
+        self.config['refresh_interval'] = self.refresh_interval
 
         save_config(self.config)
         QMessageBox.information(self, "Success", "Configuration saved successfully.")
@@ -168,6 +217,7 @@ class DisplayWindow(QMainWindow):
     def __init__(self, config):
         super().__init__()
         self.config = config
+        self.main_app = None  # Will be set by MainApp
         self.setWindowTitle("Karaoke Queue")
         self.setWindowState(Qt.WindowState.WindowMaximized)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint)
@@ -187,12 +237,24 @@ class DisplayWindow(QMainWindow):
         self.venue_label = QLabel()
         self.requests_label = QLabel()
         self.status_bar = QStatusBar()
+        
+        # Fullscreen toggle button
+        self.fullscreen_button = QPushButton("")
+        self.fullscreen_button.setFixedSize(200, 50)
+        self.fullscreen_button.hide()
+        self.fullscreen_button.clicked.connect(self.toggle_fullscreen)
+        
+        # Track mouse for fullscreen button
+        self.setMouseTracking(True)
 
         self.initUI()
         self.update_display()
+        
+        # Use refresh_interval from config (in milliseconds)
+        refresh_interval_ms = self.config.get('refresh_interval', 5) * 1000
         self.refresh_timer = QTimer()
         self.refresh_timer.timeout.connect(self.check_db_modified)
-        self.refresh_timer.start(5000)
+        self.refresh_timer.start(refresh_interval_ms)
 
     def initUI(self):
         central_widget = QWidget()
@@ -347,6 +409,24 @@ class DisplayWindow(QMainWindow):
 
 
         self.setCentralWidget(central_widget)
+        
+        # Add fullscreen toggle button (floating)
+        self.fullscreen_button.setParent(central_widget)
+        self.fullscreen_button.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 0, 0, 180);
+                color: white;
+                border: 2px solid #555;
+                border-radius: 5px;
+                font-size: 16px;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: rgba(50, 50, 50, 200);
+            }
+        """)
+        self.update_fullscreen_button_text()
+        self.position_fullscreen_button()
 
         # Status Bar
         self.status_bar = QStatusBar()
@@ -471,7 +551,75 @@ class DisplayWindow(QMainWindow):
     def resizeEvent(self, event):
         if hasattr(self, 'message_overlay_label') and self.message_overlay_label.parentWidget():
             self.message_overlay_label.setGeometry(self.centralWidget().rect())
+        if hasattr(self, 'fullscreen_button'):
+            self.position_fullscreen_button()
         super().resizeEvent(event)
+    
+    def position_fullscreen_button(self):
+        """Position the fullscreen button at the bottom center"""
+        if self.centralWidget():
+            button_x = (self.centralWidget().width() - self.fullscreen_button.width()) // 2
+            button_y = self.centralWidget().height() - self.fullscreen_button.height() - 20
+            self.fullscreen_button.move(button_x, button_y)
+            self.fullscreen_button.raise_()
+    
+    def update_fullscreen_button_text(self):
+        """Update button text based on fullscreen state"""
+        if self.isFullScreen():
+            self.fullscreen_button.setText("Make Windowed")
+        else:
+            self.fullscreen_button.setText("Make Fullscreen")
+    
+    def toggle_fullscreen(self):
+        """Toggle between fullscreen and windowed mode"""
+        if self.isFullScreen():
+            self.showNormal()
+            self.showMaximized()
+        else:
+            self.showFullScreen()
+        self.update_fullscreen_button_text()
+    
+    def mouseMoveEvent(self, event):
+        """Show/hide fullscreen button on mouse hover"""
+        if hasattr(self, 'fullscreen_button'):
+            self.fullscreen_button.show()
+            # Hide after 3 seconds of no movement
+            if hasattr(self, 'hide_button_timer'):
+                self.hide_button_timer.stop()
+            else:
+                self.hide_button_timer = QTimer()
+                self.hide_button_timer.timeout.connect(self.fullscreen_button.hide)
+            self.hide_button_timer.start(3000)
+        super().mouseMoveEvent(event)
+    
+    def contextMenuEvent(self, event):
+        """Show context menu on right-click"""
+        context_menu = QMenu(self)
+        
+        # Fullscreen/Windowed toggle
+        if self.isFullScreen():
+            fullscreen_action = QAction("Make Windowed", self)
+        else:
+            fullscreen_action = QAction("Make Fullscreen", self)
+        fullscreen_action.triggered.connect(self.toggle_fullscreen)
+        context_menu.addAction(fullscreen_action)
+        
+        # Show Config
+        config_action = QAction("Show Config", self)
+        config_action.triggered.connect(self.show_config)
+        context_menu.addAction(config_action)
+        
+        # Close
+        close_action = QAction("Close", self)
+        close_action.triggered.connect(self.close)
+        context_menu.addAction(close_action)
+        
+        context_menu.exec(event.globalPos())
+    
+    def show_config(self):
+        """Show the configuration window"""
+        if self.main_app:
+            self.main_app.show_config_window()
 
     def check_db_modified(self):
         if self.db_path and os.path.exists(self.db_path):
@@ -612,6 +760,7 @@ class MainApp:
     def show_display_window(self):
         if not self.display_window:
             self.display_window = DisplayWindow(self.config)
+            self.display_window.main_app = self  # Set reference to MainApp
         self.display_window.update_display()
         self.display_window.show()
 

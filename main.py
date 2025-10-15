@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget,
     QFileDialog, QMessageBox, QSpinBox, QHBoxLayout, QPushButton,
     QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect, QMenu,
-    QFormLayout
+    QFormLayout, QCheckBox
 )
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime, QEvent
 from PyQt6.QtGui import QFont, QPixmap, QColor, QAction, QCursor
@@ -21,7 +21,8 @@ DEFAULT_CONFIG = {
     'display_title': 'Karaoke Singer Rotation',
     'logo_path': None,
     'venue_name': "Harry's Bar",
-    'refresh_interval': 5
+    'refresh_interval': 5,
+    'accepting_requests': True
 }
 
 def load_config():
@@ -57,6 +58,7 @@ class ConfigWindow(QMainWindow):
         self.logo_path = config.get('logo_path', DEFAULT_CONFIG['logo_path'])
         self.venue_name = config.get('venue_name', DEFAULT_CONFIG['venue_name'])
         self.refresh_interval = config.get('refresh_interval', DEFAULT_CONFIG['refresh_interval'])
+        self.accepting_requests = config.get('accepting_requests', DEFAULT_CONFIG['accepting_requests'])
 
         self.initUI()
 
@@ -118,6 +120,11 @@ class ConfigWindow(QMainWindow):
         self.refresh_interval_spinbox.setMaximum(20)
         self.refresh_interval_spinbox.setMinimumWidth(100)
         form_layout.addRow("Refresh Interval (seconds):", self.refresh_interval_spinbox)
+        
+        # Accepting Requests Configuration
+        self.accepting_requests_checkbox = QCheckBox()
+        self.accepting_requests_checkbox.setChecked(self.accepting_requests)
+        form_layout.addRow("Accepting Requests:", self.accepting_requests_checkbox)
 
         layout.addLayout(form_layout)
 
@@ -179,12 +186,14 @@ class ConfigWindow(QMainWindow):
         self.display_title = self.title_input.text()
         self.venue_name = self.venue_name_input.text()
         self.refresh_interval = self.refresh_interval_spinbox.value()
+        self.accepting_requests = self.accepting_requests_checkbox.isChecked()
         self.config['db_path'] = self.db_path
         self.config['num_singers'] = self.num_singers
         self.config['display_title'] = self.display_title
         self.config['logo_path'] = self.logo_path
         self.config['venue_name'] = self.venue_name
         self.config['refresh_interval'] = self.refresh_interval
+        self.config['accepting_requests'] = self.accepting_requests
 
         save_config(self.config)
         QMessageBox.information(self, "Success", "Configuration saved successfully.")
@@ -442,7 +451,9 @@ class DisplayWindow(QMainWindow):
         self.status_bar.addWidget(status_stretch)  # Use addWidget to let it expand
 
         # Add the request label to the right
-        self.requests_label = QLabel("Accepting Requests")
+        accepting_requests = self.config.get('accepting_requests', DEFAULT_CONFIG['accepting_requests'])
+        requests_text = "Accepting Requests" if accepting_requests else "Not Accepting Requests"
+        self.requests_label = QLabel(requests_text)
         self.requests_label.setObjectName("requestsLabel")
         self.status_bar.addPermanentWidget(self.requests_label)
 
@@ -632,6 +643,12 @@ class DisplayWindow(QMainWindow):
         # Update Display Title, Logo, and Venue from config
         self.display_title_label.setText(self.config.get('display_title', DEFAULT_CONFIG['display_title']))
         self.venue_label.setText("Welcome to " + self.config.get('venue_name', DEFAULT_CONFIG['venue_name']))
+        
+        # Update requests label based on config
+        accepting_requests = self.config.get('accepting_requests', DEFAULT_CONFIG['accepting_requests'])
+        requests_text = "Accepting Requests" if accepting_requests else "Not Accepting Requests"
+        self.requests_label.setText(requests_text)
+        
         logo_path = self.config.get('logo_path', DEFAULT_CONFIG['logo_path'])
         if logo_path and os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
@@ -764,9 +781,6 @@ class MainApp:
 
         if self.config_window and self.config_window.isVisible():
             self.config_window.close()
-
-        if self.display_window:
-            QTimer.singleShot(1000, lambda: self.display_window.show_message_overlay("Welcome to Karaoke!"))
 
     def run(self):
         self.load_config_and_show_display()

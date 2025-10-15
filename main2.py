@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget,
     QFileDialog, QMessageBox, QSpinBox, QHBoxLayout, QPushButton,
-    QLineEdit, QStatusBar, QDialog, QComboBox
+    QLineEdit, QStatusBar, QDialog, QComboBox, QFormLayout
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
@@ -275,74 +275,64 @@ class ConfigWindow(QMainWindow):
         self.initUI()
 
     def initUI(self):
+        # Use QFormLayout for uniform label and field alignment
+        form_layout = QFormLayout()
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
         # Display Title
-        title_layout = QHBoxLayout()
-        title_label = QLabel("Display Title:")
         self.display_title_input = QLineEdit(self.config['display_title'])
-        title_layout.addWidget(title_label)
-        title_layout.addWidget(self.display_title_input)
-        self.layout.addLayout(title_layout)
+        self.display_title_input.setMinimumWidth(300)
+        form_layout.addRow("Display Title:", self.display_title_input)
 
         # Venue Name
-        venue_layout = QHBoxLayout()
-        venue_label = QLabel("Venue Name:")
         self.venue_name_input = QLineEdit(self.config['venue_name'])
-        venue_layout.addWidget(venue_label)
-        venue_layout.addWidget(self.venue_name_input)
-        self.layout.addLayout(venue_layout)
+        self.venue_name_input.setMinimumWidth(300)
+        form_layout.addRow("Venue Name:", self.venue_name_input)
 
         # Database Path
-        db_layout = QHBoxLayout()
-        db_label = QLabel("Database Path:")
+        db_widget = QWidget()
+        db_layout = QHBoxLayout(db_widget)
+        db_layout.setContentsMargins(0, 0, 0, 0)
         self.db_path_label_display = QLineEdit(self.config['db_path'])
+        self.db_path_label_display.setMinimumWidth(250)
         db_button = QPushButton("Browse")
         db_button.clicked.connect(self.browse_db)
-        db_layout.addWidget(db_label)
-        db_layout.addWidget(self.db_path_label_display)
+        db_layout.addWidget(self.db_path_label_display, 1)
         db_layout.addWidget(db_button)
-        self.layout.addLayout(db_layout)
+        form_layout.addRow("Database Path:", db_widget)
 
         # Number of Up Next Singers
-        num_layout = QHBoxLayout()
-        num_label = QLabel("Number of 'Up Next' Singers:")
         self.num_up_next_spinbox = QSpinBox()
         self.num_up_next_spinbox.setValue(self.config['num_up_next'])
         self.num_up_next_spinbox.setMinimum(1)
-        num_layout.addWidget(num_label)
-        num_layout.addWidget(self.num_up_next_spinbox)
-        self.layout.addLayout(num_layout)
+        self.num_up_next_spinbox.setMinimumWidth(100)
+        form_layout.addRow("Number of 'Up Next' Singers:", self.num_up_next_spinbox)
 
         # Server Port
-        port_layout = QHBoxLayout()
-        port_label = QLabel("Server Port:")
         self.server_port_spinbox = QSpinBox()
         self.server_port_spinbox.setValue(self.config['server_port'])
         self.server_port_spinbox.setMinimum(1024)  # Ports below 1024 require root
         self.server_port_spinbox.setMaximum(65535)
-        port_layout.addWidget(port_label)
-        port_layout.addWidget(self.server_port_spinbox)
-        self.layout.addLayout(port_layout)
+        self.server_port_spinbox.setMinimumWidth(100)
+        form_layout.addRow("Server Port:", self.server_port_spinbox)
 
         # Refresh Interval
-        refresh_layout = QHBoxLayout()
-        refresh_label = QLabel("Refresh Interval (seconds):")
         self.refresh_interval_spinbox = QSpinBox()
         self.refresh_interval_spinbox.setValue(self.config['refresh_interval'])
         self.refresh_interval_spinbox.setMinimum(1)
         self.refresh_interval_spinbox.setMaximum(60)
-        refresh_layout.addWidget(refresh_label)
-        refresh_layout.addWidget(self.refresh_interval_spinbox)
-        self.layout.addLayout(refresh_layout)
+        self.refresh_interval_spinbox.setMinimumWidth(100)
+        form_layout.addRow("Refresh Interval (seconds):", self.refresh_interval_spinbox)
 
         # Log Level
-        log_layout = QHBoxLayout()
-        log_label = QLabel("Log Level:")
         self.log_level_combo = QComboBox()
         self.log_level_combo.addItems(['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
         self.log_level_combo.setCurrentText(self.config['log_level'])
-        log_layout.addWidget(log_label)
-        log_layout.addWidget(self.log_level_combo)
-        self.layout.addLayout(log_layout)
+        self.log_level_combo.setMinimumWidth(150)
+        form_layout.addRow("Log Level:", self.log_level_combo)
+
+        self.layout.addLayout(form_layout)
 
         # Save Button
         save_button = QPushButton("Save Configuration")

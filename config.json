@@ -1,0 +1,9 @@
+{
+    "db_path": "/Users/phillipkirk/Library/Application Support/OpenKJ/OpenKJ/openkj.sqlite",
+    "num_up_next": 5,
+    "server_port": 1024,
+    "log_level": "INFO",
+    "display_title": "Singer Rotation",
+    "venue_name": "Harry's Bar",
+    "refresh_interval": 5
+}

@@ -213,3 +213,6 @@ celerybeat.pid
 # ==========================
 # End of .gitignore
 # ==========================
+
+# User config directories (for testing)
+/home/runner/.local/share/OpenKJ-Next-Singer-Display/

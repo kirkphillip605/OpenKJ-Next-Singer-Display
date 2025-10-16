@@ -15,18 +15,25 @@ A professional karaoke singer rotation display application for venues running Op
 ### Advanced Customization
 
 #### Enhanced Settings Dialog
-Professional 4-tab configuration interface:
+Professional 4-tab configuration interface with sticky Save and Reset buttons:
 - **General Settings**: Basic configuration options
-- **Background Settings**: Full background customization
+- **Background Settings**: Full background customization including video support
 - **Font Settings**: Individual font control for all text elements
 - **Singer Change Overlay**: Notification configuration
+- **Sticky Buttons**: Save and Reset to Default buttons are always visible at the bottom, no scrolling required
 
 #### Background Customization
 - **Solid Color**: Choose any color with color picker
-- **Image**: Use a custom background image
+- **Image**: Use a custom background image (supports GIF animations)
+- **Video**: Play video files as animated backgrounds (requires PyQt6-Multimedia)
+  - Automatically limited to 20 seconds
+  - Loops continuously
+  - Plays without audio
+  - Stretched to fill window
 - **Gradient**: Create smooth color transitions
   - Vertical, horizontal, or diagonal gradients
   - Custom start and end colors
+- **Auto-Copy**: All media files (images, videos, logos) are automatically copied to the application data directory
 
 #### Font Customization
 Individual font settings for each display element:
@@ -51,17 +58,20 @@ Automatic full-screen notification when the current singer changes:
 - Can be enabled/disabled
 
 ### Additional Features
+- OS-specific application data directory for reliable config and media storage
 - Automatic database detection (macOS/Windows)
 - Configurable refresh interval
 - Fullscreen mode support
 - Context menu for quick access
 - Reset to default settings option
-- Configuration persistence
+- Configuration persistence across sessions
+- Automatic media file management (copies files to app directory)
 
 ## Requirements
 
 - Python 3.8+
 - PyQt6
+- PyQt6-Multimedia (optional, required for video backgrounds)
 - SQLite3
 - OpenKJ karaoke management software
 
@@ -70,7 +80,7 @@ Automatic full-screen notification when the current singer changes:
 1. Clone this repository
 2. Install dependencies:
    ```bash
-   pip install PyQt6
+   pip install PyQt6 PyQt6-Multimedia
    ```
 3. Run the application:
    ```bash
@@ -146,7 +156,37 @@ See [screenshots/README.md](screenshots/README.md) for detailed descriptions.
 
 ## Configuration File
 
-Settings are stored in `config.json.bak` in the application directory. The configuration is automatically saved when you click "Save Configuration" in the settings dialog.
+Settings are stored in an OS-specific application data directory:
+- **Linux**: `~/.local/share/OpenKJ-Next-Singer-Display/config.json`
+- **macOS**: `~/Library/Application Support/OpenKJ-Next-Singer-Display/config.json`
+- **Windows**: `%APPDATA%\OpenKJ-Next-Singer-Display\config.json`
+
+The configuration is automatically saved when you click "Save Configuration" in the settings dialog. Media files (logos, background images, and videos) are copied to the `media` subdirectory within the application data directory to ensure they remain available even if the original files are moved or deleted.
+
+## Background Options
+
+### Solid Color
+Choose any color with the built-in color picker.
+
+### Image Background
+- Supported formats: PNG, JPG, JPEG, BMP, GIF
+- Images are stretched to fit the entire window
+- Animated GIFs are supported
+- Selected images are automatically copied to the application data directory
+
+### Video Background
+- Supported formats: MP4, AVI, MOV, MKV, WEBM, GIF
+- Videos are automatically:
+  - Limited to 20 seconds maximum duration
+  - Looped continuously
+  - Played without audio (video only)
+  - Stretched to fit the entire window
+- Selected videos are automatically copied to the application data directory
+- **Note**: Requires PyQt6-Multimedia to be installed
+
+### Gradient Background
+- Choose start and end colors
+- Select direction: Vertical, Horizontal, or Diagonal
 
 ## Keyboard Shortcuts & Controls
 
@@ -168,9 +208,23 @@ Settings are stored in `config.json.bak` in the application directory. The confi
 - Restart the application after changing fonts
 
 ### Background image not showing
-- Check the image file exists at the specified path
+- Check the image file exists in the application data directory
 - Supported formats: PNG, JPG, JPEG, BMP, GIF
-- Try a different image file
+- The file should have been automatically copied when you selected it
+- Try selecting the image again in settings
+
+### Video background not playing
+- Ensure PyQt6-Multimedia is installed: `pip install PyQt6-Multimedia`
+- Check the video file exists in the application data directory
+- Supported formats: MP4, AVI, MOV, MKV, WEBM
+- Videos are limited to 20 seconds and play without audio
+- Try a different video file or format
+
+### Configuration not saving
+- Check write permissions for the application data directory
+- On Linux: `~/.local/share/OpenKJ-Next-Singer-Display/`
+- On macOS: `~/Library/Application Support/OpenKJ-Next-Singer-Display/`
+- On Windows: `%APPDATA%\OpenKJ-Next-Singer-Display\`
 
 ### Overlay not appearing
 - Ensure "Enable Singer Change Overlay" is checked in settings

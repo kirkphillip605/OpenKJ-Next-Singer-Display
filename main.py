@@ -49,7 +49,17 @@ def load_config():
             with open(CONFIG_FILE, 'r') as f:
                 config = json.load(f)
                 config_with_defaults = DEFAULT_CONFIG.copy()
-                config_with_defaults.update(config)
+                
+                # Deep merge for font configurations
+                for key in config:
+                    if key.startswith('font_') and isinstance(config[key], dict):
+                        # Merge font config with defaults
+                        default_font = DEFAULT_CONFIG.get(key, {}).copy()
+                        default_font.update(config[key])
+                        config_with_defaults[key] = default_font
+                    else:
+                        config_with_defaults[key] = config[key]
+                
                 return config_with_defaults
         except (json.JSONDecodeError, Exception):
             # Config is corrupted, return defaults

@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget,
     QFileDialog, QMessageBox, QSpinBox, QHBoxLayout, QPushButton,
     QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect, QMenu,
-    QFormLayout, QCheckBox
+    QFormLayout, QCheckBox, QComboBox, QGroupBox, QFontComboBox, QColorDialog,
+    QScrollArea, QGridLayout, QTabWidget
 )
 from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime, QEvent
 from PyQt6.QtGui import QFont, QPixmap, QColor, QAction, QCursor
@@ -22,7 +23,24 @@ DEFAULT_CONFIG = {
     'logo_path': None,
     'venue_name': "Harry's Bar",
     'refresh_interval': 5,
-    'accepting_requests': True
+    'accepting_requests': True,
+    # Background settings
+    'background_color': '#161619',
+    'background_image': None,
+    'background_type': 'color',  # 'color', 'image', 'gradient'
+    'gradient_start_color': '#161619',
+    'gradient_end_color': '#2a2a2d',
+    'gradient_direction': 'vertical',  # 'vertical', 'horizontal', 'diagonal'
+    # Font settings
+    'font_display_title': {'family': 'Arial', 'size': 48, 'bold': True, 'italic': False},
+    'font_venue_name': {'family': 'Arial', 'size': 32, 'bold': True, 'italic': False},
+    'font_current_singer': {'family': 'Arial', 'size': 38, 'bold': False, 'italic': False},
+    'font_current_song': {'family': 'Arial', 'size': 24, 'bold': False, 'italic': False},
+    'font_up_next_singer': {'family': 'Arial', 'size': 30, 'bold': True, 'italic': False},
+    'font_up_next_song': {'family': 'Arial', 'size': 20, 'bold': False, 'italic': True},
+    # Overlay settings
+    'overlay_enabled': True,
+    'overlay_duration': 20  # seconds
 }
 
 def load_config():
@@ -52,6 +70,9 @@ class ConfigWindow(QMainWindow):
         self.config = config
         self.main_app = main_app
         self.setWindowTitle("Configuration")
+        self.setMinimumSize(700, 600)
+        
+        # Store current config values
         self.db_path = config.get('db_path')
         self.num_singers = config.get('num_singers', DEFAULT_NUM_SINGERS)
         self.display_title = config.get('display_title', DEFAULT_CONFIG['display_title'])
@@ -59,51 +80,97 @@ class ConfigWindow(QMainWindow):
         self.venue_name = config.get('venue_name', DEFAULT_CONFIG['venue_name'])
         self.refresh_interval = config.get('refresh_interval', DEFAULT_CONFIG['refresh_interval'])
         self.accepting_requests = config.get('accepting_requests', DEFAULT_CONFIG['accepting_requests'])
+        
+        # Background settings
+        self.background_color = config.get('background_color', DEFAULT_CONFIG['background_color'])
+        self.background_image = config.get('background_image', DEFAULT_CONFIG['background_image'])
+        self.background_type = config.get('background_type', DEFAULT_CONFIG['background_type'])
+        self.gradient_start_color = config.get('gradient_start_color', DEFAULT_CONFIG['gradient_start_color'])
+        self.gradient_end_color = config.get('gradient_end_color', DEFAULT_CONFIG['gradient_end_color'])
+        self.gradient_direction = config.get('gradient_direction', DEFAULT_CONFIG['gradient_direction'])
+        
+        # Font settings
+        self.font_display_title = config.get('font_display_title', DEFAULT_CONFIG['font_display_title'].copy())
+        self.font_venue_name = config.get('font_venue_name', DEFAULT_CONFIG['font_venue_name'].copy())
+        self.font_current_singer = config.get('font_current_singer', DEFAULT_CONFIG['font_current_singer'].copy())
+        self.font_current_song = config.get('font_current_song', DEFAULT_CONFIG['font_current_song'].copy())
+        self.font_up_next_singer = config.get('font_up_next_singer', DEFAULT_CONFIG['font_up_next_singer'].copy())
+        self.font_up_next_song = config.get('font_up_next_song', DEFAULT_CONFIG['font_up_next_song'].copy())
+        
+        # Overlay settings
+        self.overlay_enabled = config.get('overlay_enabled', DEFAULT_CONFIG['overlay_enabled'])
+        self.overlay_duration = config.get('overlay_duration', DEFAULT_CONFIG['overlay_duration'])
 
         self.initUI()
 
     def initUI(self):
-        layout = QVBoxLayout()
+        # Create a scroll area for the main content
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        main_layout = QVBoxLayout(scroll_widget)
         
-        # Use QFormLayout for uniform label and field alignment
-        form_layout = QFormLayout()
-        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        # Create tab widget
+        tabs = QTabWidget()
+        
+        # Tab 1: General Settings
+        general_tab = self.create_general_tab()
+        tabs.addTab(general_tab, "General")
+        
+        # Tab 2: Background Settings
+        background_tab = self.create_background_tab()
+        tabs.addTab(background_tab, "Background")
+        
+        # Tab 3: Font Settings
+        font_tab = self.create_font_tab()
+        tabs.addTab(font_tab, "Fonts")
+        
+        # Tab 4: Overlay Settings
+        overlay_tab = self.create_overlay_tab()
+        tabs.addTab(overlay_tab, "Singer Change Overlay")
+        
+        main_layout.addWidget(tabs)
+        
+        # Button layout
+        button_layout = QHBoxLayout()
+        
+        # Reset to Default Button
+        reset_button = QPushButton("Reset to Default")
+        reset_button.clicked.connect(self.reset_to_default)
+        button_layout.addWidget(reset_button)
+        
+        button_layout.addStretch()
+        
+        # Save Button
+        save_button = QPushButton("Save Configuration")
+        save_button.clicked.connect(self.save_config)
+        button_layout.addWidget(save_button)
+        
+        main_layout.addLayout(button_layout)
+        
+        scroll.setWidget(scroll_widget)
+        self.setCentralWidget(scroll)
+    
+    def create_general_tab(self):
+        """Create the general settings tab"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Basic Settings Group
+        basic_group = QGroupBox("Basic Settings")
+        basic_layout = QFormLayout()
+        basic_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        basic_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         
         # Rotation Title Configuration
         self.title_input = QLineEdit(self.display_title)
         self.title_input.setMinimumWidth(300)
-        form_layout.addRow("Rotation Title:", self.title_input)
+        basic_layout.addRow("Rotation Title:", self.title_input)
         
         # Venue Name Configuration
         self.venue_name_input = QLineEdit(self.venue_name)
         self.venue_name_input.setMinimumWidth(300)
-        form_layout.addRow("Venue Name:", self.venue_name_input)
-        
-        # Logo Path Configuration
-        logo_widget = QWidget()
-        logo_layout = QHBoxLayout(logo_widget)
-        logo_layout.setContentsMargins(0, 0, 0, 0)
-        self.logo_path_label_display = QLabel(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
-        self.logo_path_label_display.setMinimumWidth(200)
-        logo_button = QPushButton("Browse")
-        logo_button.clicked.connect(self.browse_logo)
-        logo_layout.addWidget(self.logo_path_label_display, 1)
-        logo_layout.addWidget(logo_button)
-        form_layout.addRow("Logo:", logo_widget)
-        
-        # Database Path Configuration
-        db_widget = QWidget()
-        db_layout = QHBoxLayout(db_widget)
-        db_layout.setContentsMargins(0, 0, 0, 0)
-        self.db_path_label_display = QLabel(self.db_path if self.db_path else "No database selected")
-        self.db_path_label_display.setWordWrap(True)
-        self.db_path_label_display.setMinimumWidth(200)
-        locate_db_button = QPushButton("Locate OpenKJ DB")
-        locate_db_button.clicked.connect(self.locate_db)
-        db_layout.addWidget(self.db_path_label_display, 1)
-        db_layout.addWidget(locate_db_button)
-        form_layout.addRow("OpenKJ Database:", db_widget)
+        basic_layout.addRow("Venue Name:", self.venue_name_input)
         
         # Number of Up Next Configuration
         self.num_singers_spinbox = QSpinBox()
@@ -111,7 +178,7 @@ class ConfigWindow(QMainWindow):
         self.num_singers_spinbox.setMinimum(1)
         self.num_singers_spinbox.setMaximum(6)
         self.num_singers_spinbox.setMinimumWidth(100)
-        form_layout.addRow("Number of Up Next:", self.num_singers_spinbox)
+        basic_layout.addRow("Number of Up Next:", self.num_singers_spinbox)
         
         # Refresh Interval Configuration
         self.refresh_interval_spinbox = QSpinBox()
@@ -119,23 +186,303 @@ class ConfigWindow(QMainWindow):
         self.refresh_interval_spinbox.setMinimum(5)
         self.refresh_interval_spinbox.setMaximum(20)
         self.refresh_interval_spinbox.setMinimumWidth(100)
-        form_layout.addRow("Refresh Interval (seconds):", self.refresh_interval_spinbox)
+        basic_layout.addRow("Refresh Interval (seconds):", self.refresh_interval_spinbox)
         
         # Accepting Requests Configuration
         self.accepting_requests_checkbox = QCheckBox()
         self.accepting_requests_checkbox.setChecked(self.accepting_requests)
-        form_layout.addRow("Accepting Requests:", self.accepting_requests_checkbox)
-
-        layout.addLayout(form_layout)
-
-        # Save Button
-        save_button = QPushButton("Save Configuration")
-        save_button.clicked.connect(self.save_config)
-        layout.addWidget(save_button)
-
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
+        basic_layout.addRow("Accepting Requests:", self.accepting_requests_checkbox)
+        
+        basic_group.setLayout(basic_layout)
+        layout.addWidget(basic_group)
+        
+        # Database Settings Group
+        db_group = QGroupBox("Database Settings")
+        db_layout = QFormLayout()
+        db_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        db_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        # Database Path Configuration
+        db_widget = QWidget()
+        db_hlayout = QHBoxLayout(db_widget)
+        db_hlayout.setContentsMargins(0, 0, 0, 0)
+        self.db_path_label_display = QLabel(self.db_path if self.db_path else "No database selected")
+        self.db_path_label_display.setWordWrap(True)
+        self.db_path_label_display.setMinimumWidth(200)
+        locate_db_button = QPushButton("Locate OpenKJ DB")
+        locate_db_button.clicked.connect(self.locate_db)
+        db_hlayout.addWidget(self.db_path_label_display, 1)
+        db_hlayout.addWidget(locate_db_button)
+        db_layout.addRow("OpenKJ Database:", db_widget)
+        
+        db_group.setLayout(db_layout)
+        layout.addWidget(db_group)
+        
+        # Logo Settings Group
+        logo_group = QGroupBox("Logo Settings")
+        logo_layout = QFormLayout()
+        logo_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        logo_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        # Logo Path Configuration
+        logo_widget = QWidget()
+        logo_hlayout = QHBoxLayout(logo_widget)
+        logo_hlayout.setContentsMargins(0, 0, 0, 0)
+        self.logo_path_label_display = QLabel(os.path.basename(self.logo_path) if self.logo_path else "No logo selected")
+        self.logo_path_label_display.setMinimumWidth(200)
+        logo_button = QPushButton("Browse")
+        logo_button.clicked.connect(self.browse_logo)
+        logo_hlayout.addWidget(self.logo_path_label_display, 1)
+        logo_hlayout.addWidget(logo_button)
+        logo_layout.addRow("Logo:", logo_widget)
+        
+        logo_group.setLayout(logo_layout)
+        layout.addWidget(logo_group)
+        
+        layout.addStretch()
+        return tab
+    
+    def create_background_tab(self):
+        """Create the background settings tab"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        bg_group = QGroupBox("Background Settings")
+        bg_layout = QFormLayout()
+        bg_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        bg_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        # Background Type
+        self.bg_type_combo = QComboBox()
+        self.bg_type_combo.addItems(['Solid Color', 'Image', 'Gradient'])
+        type_map = {'color': 0, 'image': 1, 'gradient': 2}
+        self.bg_type_combo.setCurrentIndex(type_map.get(self.background_type, 0))
+        self.bg_type_combo.currentIndexChanged.connect(self.on_background_type_changed)
+        bg_layout.addRow("Background Type:", self.bg_type_combo)
+        
+        # Solid Color
+        self.bg_color_widget = QWidget()
+        bg_color_layout = QHBoxLayout(self.bg_color_widget)
+        bg_color_layout.setContentsMargins(0, 0, 0, 0)
+        self.bg_color_display = QLabel()
+        self.bg_color_display.setFixedSize(100, 30)
+        self.bg_color_display.setStyleSheet(f"background-color: {self.background_color}; border: 1px solid #ccc;")
+        bg_color_button = QPushButton("Choose Color")
+        bg_color_button.clicked.connect(self.choose_bg_color)
+        bg_color_layout.addWidget(self.bg_color_display)
+        bg_color_layout.addWidget(bg_color_button)
+        bg_color_layout.addStretch()
+        bg_layout.addRow("Background Color:", self.bg_color_widget)
+        
+        # Background Image
+        self.bg_image_widget = QWidget()
+        bg_image_layout = QHBoxLayout(self.bg_image_widget)
+        bg_image_layout.setContentsMargins(0, 0, 0, 0)
+        self.bg_image_display = QLabel(os.path.basename(self.background_image) if self.background_image else "No image selected")
+        self.bg_image_display.setMinimumWidth(200)
+        bg_image_button = QPushButton("Browse")
+        bg_image_button.clicked.connect(self.browse_bg_image)
+        bg_image_layout.addWidget(self.bg_image_display, 1)
+        bg_image_layout.addWidget(bg_image_button)
+        bg_layout.addRow("Background Image:", self.bg_image_widget)
+        
+        # Gradient Settings
+        self.gradient_widget = QWidget()
+        gradient_layout = QVBoxLayout(self.gradient_widget)
+        gradient_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Gradient Start Color
+        gradient_start_layout = QHBoxLayout()
+        self.gradient_start_display = QLabel()
+        self.gradient_start_display.setFixedSize(100, 30)
+        self.gradient_start_display.setStyleSheet(f"background-color: {self.gradient_start_color}; border: 1px solid #ccc;")
+        gradient_start_button = QPushButton("Choose Start Color")
+        gradient_start_button.clicked.connect(self.choose_gradient_start)
+        gradient_start_layout.addWidget(self.gradient_start_display)
+        gradient_start_layout.addWidget(gradient_start_button)
+        gradient_start_layout.addStretch()
+        
+        # Gradient End Color
+        gradient_end_layout = QHBoxLayout()
+        self.gradient_end_display = QLabel()
+        self.gradient_end_display.setFixedSize(100, 30)
+        self.gradient_end_display.setStyleSheet(f"background-color: {self.gradient_end_color}; border: 1px solid #ccc;")
+        gradient_end_button = QPushButton("Choose End Color")
+        gradient_end_button.clicked.connect(self.choose_gradient_end)
+        gradient_end_layout.addWidget(self.gradient_end_display)
+        gradient_end_layout.addWidget(gradient_end_button)
+        gradient_end_layout.addStretch()
+        
+        # Gradient Direction
+        gradient_dir_layout = QHBoxLayout()
+        self.gradient_direction_combo = QComboBox()
+        self.gradient_direction_combo.addItems(['Vertical', 'Horizontal', 'Diagonal'])
+        dir_map = {'vertical': 0, 'horizontal': 1, 'diagonal': 2}
+        self.gradient_direction_combo.setCurrentIndex(dir_map.get(self.gradient_direction, 0))
+        gradient_dir_layout.addWidget(QLabel("Direction:"))
+        gradient_dir_layout.addWidget(self.gradient_direction_combo)
+        gradient_dir_layout.addStretch()
+        
+        gradient_layout.addLayout(gradient_start_layout)
+        gradient_layout.addLayout(gradient_end_layout)
+        gradient_layout.addLayout(gradient_dir_layout)
+        
+        bg_layout.addRow("Gradient Settings:", self.gradient_widget)
+        
+        bg_group.setLayout(bg_layout)
+        layout.addWidget(bg_group)
+        layout.addStretch()
+        
+        # Update visibility based on current type
+        self.on_background_type_changed()
+        
+        return tab
+    
+    def create_font_tab(self):
+        """Create the font settings tab"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        # Create font settings for each element
+        font_configs = [
+            ("Display Title", "font_display_title"),
+            ("Venue Name", "font_venue_name"),
+            ("Current Singer Name", "font_current_singer"),
+            ("Current Song", "font_current_song"),
+            ("Up Next Singer Name", "font_up_next_singer"),
+            ("Up Next Song", "font_up_next_song")
+        ]
+        
+        self.font_widgets = {}
+        
+        for label, attr in font_configs:
+            group = QGroupBox(label)
+            group_layout = QFormLayout()
+            group_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+            group_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            
+            font_data = getattr(self, attr)
+            
+            # Font Family
+            font_family = QFontComboBox()
+            font_family.setCurrentFont(QFont(font_data.get('family', 'Arial')))
+            
+            # Font Size
+            font_size = QSpinBox()
+            font_size.setValue(font_data.get('size', 24))
+            font_size.setMinimum(8)
+            font_size.setMaximum(144)
+            
+            # Bold Checkbox
+            font_bold = QCheckBox("Bold")
+            font_bold.setChecked(font_data.get('bold', False))
+            
+            # Italic Checkbox
+            font_italic = QCheckBox("Italic")
+            font_italic.setChecked(font_data.get('italic', False))
+            
+            group_layout.addRow("Font Family:", font_family)
+            group_layout.addRow("Font Size:", font_size)
+            
+            style_layout = QHBoxLayout()
+            style_layout.addWidget(font_bold)
+            style_layout.addWidget(font_italic)
+            style_layout.addStretch()
+            group_layout.addRow("Font Style:", style_layout)
+            
+            group.setLayout(group_layout)
+            layout.addWidget(group)
+            
+            # Store references
+            self.font_widgets[attr] = {
+                'family': font_family,
+                'size': font_size,
+                'bold': font_bold,
+                'italic': font_italic
+            }
+        
+        layout.addStretch()
+        return tab
+    
+    def create_overlay_tab(self):
+        """Create the singer change overlay settings tab"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        
+        overlay_group = QGroupBox("Singer Change Overlay Settings")
+        overlay_layout = QFormLayout()
+        overlay_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        overlay_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        
+        # Enable Overlay
+        self.overlay_enabled_checkbox = QCheckBox()
+        self.overlay_enabled_checkbox.setChecked(self.overlay_enabled)
+        overlay_layout.addRow("Enable Singer Change Overlay:", self.overlay_enabled_checkbox)
+        
+        # Overlay Duration
+        self.overlay_duration_spinbox = QSpinBox()
+        self.overlay_duration_spinbox.setValue(self.overlay_duration)
+        self.overlay_duration_spinbox.setMinimum(5)
+        self.overlay_duration_spinbox.setMaximum(60)
+        self.overlay_duration_spinbox.setSuffix(" seconds")
+        overlay_layout.addRow("Overlay Duration:", self.overlay_duration_spinbox)
+        
+        # Description
+        desc_label = QLabel(
+            "When enabled, a full-screen overlay will be displayed when the current singer changes.\n"
+            "The overlay shows:\n"
+            '  • "The next performer is" centered at the top\n'
+            "  • New singer name centered below (slightly larger)\n"
+            "  • New song title and artist\n\n"
+            "The overlay will automatically hide after the specified duration."
+        )
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: #666; padding: 10px; background-color: #f0f0f0; border-radius: 5px;")
+        overlay_layout.addRow(desc_label)
+        
+        overlay_group.setLayout(overlay_layout)
+        layout.addWidget(overlay_group)
+        layout.addStretch()
+        
+        return tab
+    
+    def on_background_type_changed(self):
+        """Show/hide background settings based on selected type"""
+        bg_type = self.bg_type_combo.currentIndex()
+        
+        # 0 = color, 1 = image, 2 = gradient
+        self.bg_color_widget.setVisible(bg_type == 0)
+        self.bg_image_widget.setVisible(bg_type == 1)
+        self.gradient_widget.setVisible(bg_type == 2)
+    
+    def choose_bg_color(self):
+        """Open color picker for background color"""
+        color = QColorDialog.getColor(QColor(self.background_color), self)
+        if color.isValid():
+            self.background_color = color.name()
+            self.bg_color_display.setStyleSheet(f"background-color: {self.background_color}; border: 1px solid #ccc;")
+    
+    def browse_bg_image(self):
+        """Browse for background image"""
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(self, "Select Background Image", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)")
+        if file_path:
+            self.background_image = file_path
+            self.bg_image_display.setText(os.path.basename(self.background_image))
+    
+    def choose_gradient_start(self):
+        """Open color picker for gradient start color"""
+        color = QColorDialog.getColor(QColor(self.gradient_start_color), self)
+        if color.isValid():
+            self.gradient_start_color = color.name()
+            self.gradient_start_display.setStyleSheet(f"background-color: {self.gradient_start_color}; border: 1px solid #ccc;")
+    
+    def choose_gradient_end(self):
+        """Open color picker for gradient end color"""
+        color = QColorDialog.getColor(QColor(self.gradient_end_color), self)
+        if color.isValid():
+            self.gradient_end_color = color.name()
+            self.gradient_end_display.setStyleSheet(f"background-color: {self.gradient_end_color}; border: 1px solid #ccc;")
 
     def browse_db(self):
         file_dialog = QFileDialog()
@@ -176,6 +523,57 @@ class ConfigWindow(QMainWindow):
             if file_path:
                 self.db_path = file_path
                 self.db_path_label_display.setText(self.db_path)
+    
+    def reset_to_default(self):
+        """Reset all settings to default values"""
+        reply = QMessageBox.question(
+            self, 
+            "Reset to Default", 
+            "Are you sure you want to reset all settings to their default values?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Reset all values to defaults (except db_path)
+            self.title_input.setText(DEFAULT_CONFIG['display_title'])
+            self.venue_name_input.setText(DEFAULT_CONFIG['venue_name'])
+            self.num_singers_spinbox.setValue(DEFAULT_CONFIG['num_singers'])
+            self.refresh_interval_spinbox.setValue(DEFAULT_CONFIG['refresh_interval'])
+            self.accepting_requests_checkbox.setChecked(DEFAULT_CONFIG['accepting_requests'])
+            
+            # Reset background settings
+            self.background_color = DEFAULT_CONFIG['background_color']
+            self.background_image = DEFAULT_CONFIG['background_image']
+            self.background_type = DEFAULT_CONFIG['background_type']
+            self.gradient_start_color = DEFAULT_CONFIG['gradient_start_color']
+            self.gradient_end_color = DEFAULT_CONFIG['gradient_end_color']
+            self.gradient_direction = DEFAULT_CONFIG['gradient_direction']
+            
+            type_map = {'color': 0, 'image': 1, 'gradient': 2}
+            self.bg_type_combo.setCurrentIndex(type_map.get(self.background_type, 0))
+            self.bg_color_display.setStyleSheet(f"background-color: {self.background_color}; border: 1px solid #ccc;")
+            self.bg_image_display.setText("No image selected")
+            self.gradient_start_display.setStyleSheet(f"background-color: {self.gradient_start_color}; border: 1px solid #ccc;")
+            self.gradient_end_display.setStyleSheet(f"background-color: {self.gradient_end_color}; border: 1px solid #ccc;")
+            dir_map = {'vertical': 0, 'horizontal': 1, 'diagonal': 2}
+            self.gradient_direction_combo.setCurrentIndex(dir_map.get(self.gradient_direction, 0))
+            
+            # Reset font settings
+            for attr in ['font_display_title', 'font_venue_name', 'font_current_singer', 
+                        'font_current_song', 'font_up_next_singer', 'font_up_next_song']:
+                default_font = DEFAULT_CONFIG[attr].copy()
+                widgets = self.font_widgets[attr]
+                widgets['family'].setCurrentFont(QFont(default_font['family']))
+                widgets['size'].setValue(default_font['size'])
+                widgets['bold'].setChecked(default_font['bold'])
+                widgets['italic'].setChecked(default_font['italic'])
+            
+            # Reset overlay settings
+            self.overlay_enabled_checkbox.setChecked(DEFAULT_CONFIG['overlay_enabled'])
+            self.overlay_duration_spinbox.setValue(DEFAULT_CONFIG['overlay_duration'])
+            
+            QMessageBox.information(self, "Success", "Settings have been reset to default values.")
 
     def save_config(self):
         if not self.db_path:
@@ -187,6 +585,29 @@ class ConfigWindow(QMainWindow):
         self.venue_name = self.venue_name_input.text()
         self.refresh_interval = self.refresh_interval_spinbox.value()
         self.accepting_requests = self.accepting_requests_checkbox.isChecked()
+        
+        # Background settings
+        bg_type_map = {0: 'color', 1: 'image', 2: 'gradient'}
+        self.background_type = bg_type_map[self.bg_type_combo.currentIndex()]
+        
+        dir_map = {0: 'vertical', 1: 'horizontal', 2: 'diagonal'}
+        self.gradient_direction = dir_map[self.gradient_direction_combo.currentIndex()]
+        
+        # Font settings
+        for attr, widgets in self.font_widgets.items():
+            font_config = {
+                'family': widgets['family'].currentFont().family(),
+                'size': widgets['size'].value(),
+                'bold': widgets['bold'].isChecked(),
+                'italic': widgets['italic'].isChecked()
+            }
+            setattr(self, attr, font_config)
+        
+        # Overlay settings
+        self.overlay_enabled = self.overlay_enabled_checkbox.isChecked()
+        self.overlay_duration = self.overlay_duration_spinbox.value()
+        
+        # Update config dict
         self.config['db_path'] = self.db_path
         self.config['num_singers'] = self.num_singers
         self.config['display_title'] = self.display_title
@@ -194,6 +615,20 @@ class ConfigWindow(QMainWindow):
         self.config['venue_name'] = self.venue_name
         self.config['refresh_interval'] = self.refresh_interval
         self.config['accepting_requests'] = self.accepting_requests
+        self.config['background_color'] = self.background_color
+        self.config['background_image'] = self.background_image
+        self.config['background_type'] = self.background_type
+        self.config['gradient_start_color'] = self.gradient_start_color
+        self.config['gradient_end_color'] = self.gradient_end_color
+        self.config['gradient_direction'] = self.gradient_direction
+        self.config['font_display_title'] = self.font_display_title
+        self.config['font_venue_name'] = self.font_venue_name
+        self.config['font_current_singer'] = self.font_current_singer
+        self.config['font_current_song'] = self.font_current_song
+        self.config['font_up_next_singer'] = self.font_up_next_singer
+        self.config['font_up_next_song'] = self.font_up_next_song
+        self.config['overlay_enabled'] = self.overlay_enabled
+        self.config['overlay_duration'] = self.overlay_duration
 
         save_config(self.config)
         QMessageBox.information(self, "Success", "Configuration saved successfully.")
@@ -244,6 +679,10 @@ class DisplayWindow(QMainWindow):
         self.venue_label = QLabel()
         self.requests_label = QLabel()
         self.status_bar = QStatusBar()
+        
+        # Track previous singer for overlay detection
+        self.previous_singer_id = None
+        self.previous_singer_name = None
         
         # Fullscreen toggle button
         self.fullscreen_button = QPushButton("")
@@ -457,105 +896,148 @@ class DisplayWindow(QMainWindow):
         self.requests_label.setObjectName("requestsLabel")
         self.status_bar.addPermanentWidget(self.requests_label)
 
-        # Clean up the stylesheet
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #161619;
+        # Apply styles dynamically from config
+        self.apply_styles()
+    
+    def apply_styles(self):
+        """Apply dynamic styles based on configuration"""
+        # Get background settings
+        bg_type = self.config.get('background_type', 'color')
+        bg_color = self.config.get('background_color', '#161619')
+        bg_image = self.config.get('background_image')
+        gradient_start = self.config.get('gradient_start_color', '#161619')
+        gradient_end = self.config.get('gradient_end_color', '#2a2a2d')
+        gradient_dir = self.config.get('gradient_direction', 'vertical')
+        
+        # Build background style
+        if bg_type == 'color':
+            background_style = f"background-color: {bg_color};"
+        elif bg_type == 'image' and bg_image and os.path.exists(bg_image):
+            background_style = f"background-image: url({bg_image}); background-position: center; background-repeat: no-repeat; background-attachment: fixed;"
+        elif bg_type == 'gradient':
+            if gradient_dir == 'vertical':
+                gradient_style = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {gradient_start}, stop:1 {gradient_end})"
+            elif gradient_dir == 'horizontal':
+                gradient_style = f"qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {gradient_start}, stop:1 {gradient_end})"
+            else:  # diagonal
+                gradient_style = f"qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {gradient_start}, stop:1 {gradient_end})"
+            background_style = f"background: {gradient_style};"
+        else:
+            background_style = f"background-color: {bg_color};"
+        
+        # Get font settings
+        font_display_title = self.config.get('font_display_title', DEFAULT_CONFIG['font_display_title'])
+        font_venue_name = self.config.get('font_venue_name', DEFAULT_CONFIG['font_venue_name'])
+        font_current_singer = self.config.get('font_current_singer', DEFAULT_CONFIG['font_current_singer'])
+        font_current_song = self.config.get('font_current_song', DEFAULT_CONFIG['font_current_song'])
+        font_up_next_singer = self.config.get('font_up_next_singer', DEFAULT_CONFIG['font_up_next_singer'])
+        font_up_next_song = self.config.get('font_up_next_song', DEFAULT_CONFIG['font_up_next_song'])
+        
+        # Helper function to create font style string
+        def font_style(font_config):
+            family = font_config.get('family', 'Arial')
+            size = font_config.get('size', 24)
+            bold = 'bold' if font_config.get('bold', False) else 'normal'
+            italic = 'italic' if font_config.get('italic', False) else 'normal'
+            return f"font-family: '{family}'; font-size: {size}px; font-weight: {bold}; font-style: {italic};"
+        
+        # Build complete stylesheet
+        stylesheet = f"""
+            QMainWindow {{
+                {background_style}
                 color: #eee;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 color: #eee;
                 font-size: 24px;
-            }
-            #leftSection {
-                background-color: #161619;
-            }
-            #rightSection {
-                background-color: #161619;
-            }
-            #venueLabel {
-                font-size: 32px;
-                font-weight: bold;
+            }}
+            #leftSection {{
+                background: transparent;
+            }}
+            #rightSection {{
+                background: transparent;
+            }}
+            #venueLabel {{
+                {font_style(font_venue_name)}
                 margin-bottom: 10px;
                 text-align: center;
-            }
-            #displayTitle {
-                font-size: 48px;
-                font-weight: bold;
+            }}
+            #displayTitle {{
+                {font_style(font_display_title)}
                 margin-bottom: 10px;
                 text-align: center;
-            }
-            #titleSeparator {
+            }}
+            #titleSeparator {{
                 background-color: #cdceec;
                 color: #cdceec;
                 margin-bottom: 20px;
                 height: 1px;
-            }
-            #sectionHeading {
+            }}
+            #sectionHeading {{
                 font-size: 32px;
                 margin-bottom: 25px;
                 text-align: center;
-            }
-            #currentSingerName {
-                font-size: 38px;
+            }}
+            #currentSingerName {{
+                {font_style(font_current_singer)}
                 text-align: center;
-            }
-            #singingLabel {
+            }}
+            #singingLabel {{
                 font-size: 18px;
                 text-align: center;
                 font-style: italic;
-            }
-            #currentSongName {
-                font-size: 24px;
+            }}
+            #currentSongName {{
+                {font_style(font_current_song)}
                 text-align: center;
-            }
-            #upNextSingerName {
-                font-size: 30px;
-                font-weight: bold;
+            }}
+            #upNextSingerName {{
+                {font_style(font_up_next_singer)}
                 margin-bottom: 5px;
                 text-align: center;
-            }
-            #upNextSongName {
-                font-size: 20px;
-                font-style: italic;
+            }}
+            #upNextSongName {{
+                {font_style(font_up_next_song)}
                 margin-bottom: 10px;
                 text-align: center;
-            }
-             #upNextSeparator {
-                background-color: #3b3c3c; /* Darker shade for subtle separation */
+            }}
+             #upNextSeparator {{
+                background-color: #3b3c3c;
                 color: 353738;
-                height: 1px;  /* Thinner line */
+                height: 1px;
                 margin-top: 10px;
                 margin-bottom: 10px;
-             }
-            #messageOverlay {
-                background-color: rgba(0, 0, 0, 190); /* Semi-transparent black background */
+             }}
+            #messageOverlay {{
+                background-color: rgba(0, 0, 0, 190);
                 color: #fff;
                 font-size: 72px;
                 font-weight: bold; 
-            }
-            #requestsLabel {
+            }}
+            #requestsLabel {{
                 font-size: 36px;
                 color: #00a800;
                 margin-right: 10px;
-            }
-            #clock {
+            }}
+            #clock {{
                 font-size: 36px;
                 color: #eee;
                 margin-left: 10px;
-            }
-            #currentPerformerFrame, #upNextFrame {
+            }}
+            #currentPerformerFrame, #upNextFrame {{
                border: 1px solid #353738;
                border-radius: 2px;
                margin-bottom: 15px;
                padding: 10px;
-            }
-            #statusBar {
+            }}
+            #statusBar {{
                 background: transparent;
                 border: 1px solid #656565;
                 color: #eee;                
-            }
-        """)
+            }}
+        """
+        
+        self.setStyleSheet(stylesheet)
 
     def resizeEvent(self, event):
         if hasattr(self, 'message_overlay_label') and self.message_overlay_label.parentWidget():
@@ -674,6 +1156,18 @@ class DisplayWindow(QMainWindow):
 
             if singers_data:
                 current_singer_id, current_singer_name, _ = singers_data[0]
+                
+                # Check if singer has changed and overlay is enabled
+                overlay_enabled = self.config.get('overlay_enabled', DEFAULT_CONFIG['overlay_enabled'])
+                if overlay_enabled and self.previous_singer_id is not None and self.previous_singer_id != current_singer_id:
+                    # Singer has changed, show overlay
+                    current_song_info = self.get_next_song_for_singer(cursor, current_singer_id)
+                    self.show_singer_change_overlay(current_singer_name, current_song_info)
+                
+                # Update previous singer tracking
+                self.previous_singer_id = current_singer_id
+                self.previous_singer_name = current_singer_name
+                
                 self.current_singer_label.setText(current_singer_name)
                 current_song_info = self.get_next_song_for_singer(cursor, current_singer_id)
                 if current_song_info:
@@ -707,6 +1201,21 @@ class DisplayWindow(QMainWindow):
         except sqlite3.Error as e:
             self.clear_display(f"Database error: {e}")
             return
+    
+    def show_singer_change_overlay(self, singer_name, song_info):
+        """Show overlay when singer changes"""
+        overlay_duration = self.config.get('overlay_duration', DEFAULT_CONFIG['overlay_duration'])
+        
+        # Build overlay text
+        overlay_text = f"The next performer is\n\n{singer_name}"
+        if song_info:
+            overlay_text += f"\n\nPerforming\n{song_info}"
+        
+        self.message_overlay_label.setText(overlay_text)
+        self.message_overlay_label.show()
+        
+        # Hide overlay after duration
+        QTimer.singleShot(overlay_duration * 1000, self.hide_message_overlay)
 
     def get_next_song_for_singer(self, cursor, singer_id):
         cursor.execute("""
@@ -776,6 +1285,10 @@ class MainApp:
         if not self.display_window:
             self.display_window = DisplayWindow(self.config)
             self.display_window.main_app = self  # Set reference to MainApp
+        else:
+            # Reload config and apply new styles
+            self.display_window.config = self.config
+            self.display_window.apply_styles()
         self.display_window.update_display()
         self.display_window.show()
 

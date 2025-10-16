@@ -11,21 +11,10 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QSpinBox, QHBoxLayout, QPushButton,
     QSizePolicy, QFrame, QLineEdit, QStatusBar, QGraphicsDropShadowEffect, QMenu,
     QFormLayout, QCheckBox, QComboBox, QGroupBox, QFontComboBox, QColorDialog,
-    QScrollArea, QGridLayout, QTabWidget
+    QScrollArea, QGridLayout, QTabWidget, QDialog, QDialogButtonBox
 )
-from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime, QEvent, QUrl
+from PyQt6.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal, QTime, QEvent
 from PyQt6.QtGui import QFont, QPixmap, QColor, QAction, QCursor, QMovie
-
-# Try to import multimedia modules (they may not be available)
-try:
-    from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-    from PyQt6.QtMultimediaWidgets import QVideoWidget
-    MULTIMEDIA_AVAILABLE = True
-except ImportError:
-    MULTIMEDIA_AVAILABLE = False
-    QMediaPlayer = None
-    QAudioOutput = None
-    QVideoWidget = None
 
 def get_app_data_dir():
     """Get the OS-specific application data directory"""
@@ -61,8 +50,7 @@ DEFAULT_CONFIG = {
     # Background settings
     'background_color': '#161619',
     'background_image': None,
-    'background_video': None,
-    'background_type': 'color',  # 'color', 'image', 'video', 'gradient'
+    'background_type': 'color',  # 'color', 'image', 'gradient'
     'gradient_start_color': '#161619',
     'gradient_end_color': '#2a2a2d',
     'gradient_direction': 'vertical',  # 'vertical', 'horizontal', 'diagonal'
@@ -107,7 +95,7 @@ def save_config(config):
         json.dump(config, f, indent=4)
 
 
-class ConfigWindow(QMainWindow):
+class ConfigWindow(QDialog):
     config_updated = pyqtSignal()
 
     def __init__(self, config, main_app):
@@ -129,7 +117,6 @@ class ConfigWindow(QMainWindow):
         # Background settings
         self.background_color = config.get('background_color', DEFAULT_CONFIG['background_color'])
         self.background_image = config.get('background_image', DEFAULT_CONFIG['background_image'])
-        self.background_video = config.get('background_video', DEFAULT_CONFIG['background_video'])
         self.background_type = config.get('background_type', DEFAULT_CONFIG['background_type'])
         self.gradient_start_color = config.get('gradient_start_color', DEFAULT_CONFIG['gradient_start_color'])
         self.gradient_end_color = config.get('gradient_end_color', DEFAULT_CONFIG['gradient_end_color'])
@@ -150,18 +137,17 @@ class ConfigWindow(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        # Main container
-        container = QWidget()
-        container_layout = QVBoxLayout(container)
-        container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(0)
+        # Main layout for dialog
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
         # Create a scroll area for the main content
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_widget = QWidget()
-        main_layout = QVBoxLayout(scroll_widget)
+        content_layout = QVBoxLayout(scroll_widget)
         
         # Create tab widget
         tabs = QTabWidget()
@@ -182,49 +168,39 @@ class ConfigWindow(QMainWindow):
         overlay_tab = self.create_overlay_tab()
         tabs.addTab(overlay_tab, "Singer Change Overlay")
         
-        main_layout.addWidget(tabs)
+        content_layout.addWidget(tabs)
         scroll.setWidget(scroll_widget)
         
-        # Add scroll area to container
-        container_layout.addWidget(scroll, 1)  # Give it stretch factor so buttons stay at bottom
+        # Add scroll area to main layout
+        main_layout.addWidget(scroll)
         
-        # Sticky button bar at the bottom
-        button_bar = QFrame()
-        button_bar.setFrameShape(QFrame.Shape.StyledPanel)
-        button_bar.setObjectName("buttonBar")
-        button_layout = QHBoxLayout(button_bar)
-        button_layout.setContentsMargins(10, 10, 10, 10)
+        # Create standard dialog button box
+        button_box = QDialogButtonBox()
         
-        # Reset to Default Button
-        reset_button = QPushButton("Reset to Default")
+        # Add "Reset To Defaults" button on the left
+        reset_button = button_box.addButton("Reset To Defaults", QDialogButtonBox.ButtonRole.ResetRole)
         reset_button.clicked.connect(self.reset_to_default)
-        button_layout.addWidget(reset_button)
         
-        button_layout.addStretch()
+        # Add "Discard Changes" button (Reject role)
+        discard_button = button_box.addButton("Discard Changes", QDialogButtonBox.ButtonRole.RejectRole)
+        discard_button.clicked.connect(self.reject)
         
-        # Save Button
-        save_button = QPushButton("Save Configuration")
+        # Add "Save Changes" button (Accept role)
+        save_button = button_box.addButton("Save Changes", QDialogButtonBox.ButtonRole.AcceptRole)
         save_button.clicked.connect(self.save_config)
         save_button.setDefault(True)
-        button_layout.addWidget(save_button)
         
-        # Add button bar to container (no stretch, stays at bottom)
-        container_layout.addWidget(button_bar, 0)
+        main_layout.addWidget(button_box)
         
-        # Apply stylesheet for button bar
-        button_bar.setStyleSheet("""
-            #buttonBar {
-                background-color: #f5f5f5;
-                border-top: 1px solid #ccc;
-            }
-            QPushButton {
-                min-width: 150px;
-                padding: 8px 16px;
-                font-size: 14px;
-            }
-        """)
-        
-        self.setCentralWidget(container)
+        # Load and apply the style.qss stylesheet to this dialog only
+        try:
+            qss_path = Path(__file__).parent / 'style.qss'
+            if qss_path.exists():
+                with open(qss_path, 'r') as f:
+                    stylesheet = f.read()
+                    self.setStyleSheet(stylesheet)
+        except Exception as e:
+            print(f"Warning: Could not load style.qss: {e}")
     
     def create_general_tab(self):
         """Create the general settings tab"""
@@ -329,8 +305,8 @@ class ConfigWindow(QMainWindow):
         
         # Background Type
         self.bg_type_combo = QComboBox()
-        self.bg_type_combo.addItems(['Solid Color', 'Image', 'Video', 'Gradient'])
-        type_map = {'color': 0, 'image': 1, 'video': 2, 'gradient': 3}
+        self.bg_type_combo.addItems(['Solid Color', 'Image', 'Gradient'])
+        type_map = {'color': 0, 'image': 1, 'gradient': 2}
         self.bg_type_combo.setCurrentIndex(type_map.get(self.background_type, 0))
         self.bg_type_combo.currentIndexChanged.connect(self.on_background_type_changed)
         bg_layout.addRow("Background Type:", self.bg_type_combo)
@@ -361,28 +337,6 @@ class ConfigWindow(QMainWindow):
         bg_image_layout.addWidget(self.bg_image_display, 1)
         bg_image_layout.addWidget(bg_image_button)
         bg_layout.addRow("Background Image:", self.bg_image_widget)
-        
-        # Background Video
-        self.bg_video_widget = QWidget()
-        bg_video_layout = QHBoxLayout(self.bg_video_widget)
-        bg_video_layout.setContentsMargins(0, 0, 0, 0)
-        self.bg_video_display = QLabel(os.path.basename(self.background_video) if self.background_video else "No video selected")
-        self.bg_video_display.setMinimumWidth(200)
-        self.bg_video_display.setWordWrap(True)
-        bg_video_button = QPushButton("Browse")
-        bg_video_button.clicked.connect(self.browse_bg_video)
-        bg_video_layout.addWidget(self.bg_video_display, 1)
-        bg_video_layout.addWidget(bg_video_button)
-        
-        # Add info label about video requirements
-        video_info = QLabel("Video will be limited to 20 seconds, loop continuously, and play without audio.")
-        video_info.setWordWrap(True)
-        video_info.setStyleSheet("color: #666; font-size: 11px; padding: 5px;")
-        bg_video_layout_v = QVBoxLayout()
-        bg_video_layout_v.addLayout(bg_video_layout)
-        bg_video_layout_v.addWidget(video_info)
-        self.bg_video_widget.setLayout(bg_video_layout_v)
-        bg_layout.addRow("Background Video:", self.bg_video_widget)
         
         # Gradient Settings
         self.gradient_widget = QWidget()
@@ -548,11 +502,10 @@ class ConfigWindow(QMainWindow):
         """Show/hide background settings based on selected type"""
         bg_type = self.bg_type_combo.currentIndex()
         
-        # 0 = color, 1 = image, 2 = video, 3 = gradient
+        # 0 = color, 1 = image, 2 = gradient
         self.bg_color_widget.setVisible(bg_type == 0)
         self.bg_image_widget.setVisible(bg_type == 1)
-        self.bg_video_widget.setVisible(bg_type == 2)
-        self.gradient_widget.setVisible(bg_type == 3)
+        self.gradient_widget.setVisible(bg_type == 2)
     
     def choose_bg_color(self):
         """Open color picker for background color"""
@@ -589,37 +542,6 @@ class ConfigWindow(QMainWindow):
                     self, 
                     "Error", 
                     f"Failed to copy image: {str(e)}"
-                )
-    
-    def browse_bg_video(self):
-        """Browse for background video and copy it to app directory"""
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getOpenFileName(
-            self, 
-            "Select Background Video", 
-            "", 
-            "Videos (*.mp4 *.avi *.mov *.mkv *.webm *.gif)"
-        )
-        if file_path:
-            try:
-                # Copy file to media directory
-                file_name = Path(file_path).name
-                dest_path = MEDIA_DIR / f"bg_video_{file_name}"
-                shutil.copy2(file_path, dest_path)
-                
-                self.background_video = str(dest_path)
-                self.bg_video_display.setText(os.path.basename(file_path))
-                QMessageBox.information(
-                    self, 
-                    "Success", 
-                    f"Background video copied to application directory.\n"
-                    f"Note: Video will be limited to 20 seconds and play without audio."
-                )
-            except Exception as e:
-                QMessageBox.warning(
-                    self, 
-                    "Error", 
-                    f"Failed to copy video: {str(e)}"
                 )
     
     def choose_gradient_start(self):
@@ -714,17 +636,15 @@ class ConfigWindow(QMainWindow):
             # Reset background settings
             self.background_color = DEFAULT_CONFIG['background_color']
             self.background_image = DEFAULT_CONFIG['background_image']
-            self.background_video = DEFAULT_CONFIG['background_video']
             self.background_type = DEFAULT_CONFIG['background_type']
             self.gradient_start_color = DEFAULT_CONFIG['gradient_start_color']
             self.gradient_end_color = DEFAULT_CONFIG['gradient_end_color']
             self.gradient_direction = DEFAULT_CONFIG['gradient_direction']
             
-            type_map = {'color': 0, 'image': 1, 'video': 2, 'gradient': 3}
+            type_map = {'color': 0, 'image': 1, 'gradient': 2}
             self.bg_type_combo.setCurrentIndex(type_map.get(self.background_type, 0))
             self.bg_color_display.setStyleSheet(f"background-color: {self.background_color}; border: 1px solid #ccc;")
             self.bg_image_display.setText("No image selected")
-            self.bg_video_display.setText("No video selected")
             self.gradient_start_display.setStyleSheet(f"background-color: {self.gradient_start_color}; border: 1px solid #ccc;")
             self.gradient_end_display.setStyleSheet(f"background-color: {self.gradient_end_color}; border: 1px solid #ccc;")
             dir_map = {'vertical': 0, 'horizontal': 1, 'diagonal': 2}
@@ -758,7 +678,7 @@ class ConfigWindow(QMainWindow):
         self.accepting_requests = self.accepting_requests_checkbox.isChecked()
         
         # Background settings
-        bg_type_map = {0: 'color', 1: 'image', 2: 'video', 3: 'gradient'}
+        bg_type_map = {0: 'color', 1: 'image', 2: 'gradient'}
         self.background_type = bg_type_map[self.bg_type_combo.currentIndex()]
         
         dir_map = {0: 'vertical', 1: 'horizontal', 2: 'diagonal'}
@@ -788,7 +708,6 @@ class ConfigWindow(QMainWindow):
         self.config['accepting_requests'] = self.accepting_requests
         self.config['background_color'] = self.background_color
         self.config['background_image'] = self.background_image
-        self.config['background_video'] = self.background_video
         self.config['background_type'] = self.background_type
         self.config['gradient_start_color'] = self.gradient_start_color
         self.config['gradient_end_color'] = self.gradient_end_color
@@ -805,7 +724,7 @@ class ConfigWindow(QMainWindow):
         save_config(self.config)
         QMessageBox.information(self, "Success", "Configuration saved successfully.")
         self.config_updated.emit()
-        self.close()
+        self.accept()
 
 
 class Clock(QLabel):
@@ -856,11 +775,6 @@ class DisplayWindow(QMainWindow):
         self.previous_singer_id = None
         self.previous_singer_name = None
         
-        # Video player for background video
-        self.video_widget = None
-        self.media_player = None
-        self.audio_output = None
-        
         # Fullscreen toggle button
         self.fullscreen_button = QPushButton("")
         self.fullscreen_button.setFixedSize(200, 50)
@@ -881,36 +795,6 @@ class DisplayWindow(QMainWindow):
 
     def initUI(self):
         central_widget = QWidget()
-        
-        # Setup video widget if background is video
-        bg_type = self.config.get('background_type', 'color')
-        bg_video = self.config.get('background_video')
-        
-        if bg_type == 'video' and bg_video and os.path.exists(bg_video) and MULTIMEDIA_AVAILABLE:
-            # Create video widget as background
-            self.video_widget = QVideoWidget()
-            self.video_widget.setParent(central_widget)
-            self.video_widget.setGeometry(0, 0, self.width(), self.height())
-            self.video_widget.lower()  # Put video widget at the back
-            
-            # Setup media player
-            self.media_player = QMediaPlayer()
-            self.audio_output = QAudioOutput()
-            self.audio_output.setVolume(0)  # Mute audio
-            self.media_player.setAudioOutput(self.audio_output)
-            self.media_player.setVideoOutput(self.video_widget)
-            
-            # Load video
-            self.media_player.setSource(QUrl.fromLocalFile(bg_video))
-            
-            # Setup looping with 20-second limit
-            self.media_player.positionChanged.connect(self.check_video_position)
-            self.media_player.mediaStatusChanged.connect(self.on_media_status_changed)
-            
-            # Start playing
-            self.media_player.play()
-        elif bg_type == 'video' and not MULTIMEDIA_AVAILABLE:
-            print("Warning: Video background selected but PyQt6 Multimedia not available")
         
         main_layout = QHBoxLayout(central_widget)
         main_layout.setSpacing(0)
@@ -1113,7 +997,6 @@ class DisplayWindow(QMainWindow):
         bg_type = self.config.get('background_type', 'color')
         bg_color = self.config.get('background_color', '#161619')
         bg_image = self.config.get('background_image')
-        bg_video = self.config.get('background_video')
         gradient_start = self.config.get('gradient_start_color', '#161619')
         gradient_end = self.config.get('gradient_end_color', '#2a2a2d')
         gradient_dir = self.config.get('gradient_direction', 'vertical')
@@ -1127,10 +1010,13 @@ class DisplayWindow(QMainWindow):
                 # For GIFs, we'll use transparent background and let QMovie handle it
                 background_style = f"background-color: {bg_color};"
             else:
-                background_style = f"background-image: url({bg_image}); background-position: center; background-repeat: no-repeat; background-attachment: fixed;"
-        elif bg_type == 'video' and bg_video and os.path.exists(bg_video):
-            # For video backgrounds, use transparent/dark background for content readability
-            background_style = "background-color: transparent;"
+                # Add a semi-transparent dark overlay for better text readability
+                background_style = f"""
+                    background-image: url({bg_image}); 
+                    background-position: center; 
+                    background-repeat: no-repeat; 
+                    background-attachment: fixed;
+                """
         elif bg_type == 'gradient':
             if gradient_dir == 'vertical':
                 gradient_style = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {gradient_start}, stop:1 {gradient_end})"
@@ -1158,6 +1044,12 @@ class DisplayWindow(QMainWindow):
             italic = 'italic' if font_config.get('italic', False) else 'normal'
             return f"font-family: '{family}'; font-size: {size}px; font-weight: {bold}; font-style: {italic};"
         
+        # Add semi-transparent overlay styling for sections when using image background
+        section_background = "background: transparent;"
+        if bg_type == 'image' and bg_image and os.path.exists(bg_image):
+            # Add semi-transparent dark background to sections for better readability
+            section_background = "background: rgba(0, 0, 0, 0.6);"
+        
         # Build complete stylesheet
         stylesheet = f"""
             QMainWindow {{
@@ -1169,10 +1061,10 @@ class DisplayWindow(QMainWindow):
                 font-size: 24px;
             }}
             #leftSection {{
-                background: transparent;
+                {section_background}
             }}
             #rightSection {{
-                background: transparent;
+                {section_background}
             }}
             #venueLabel {{
                 {font_style(font_venue_name)}
@@ -1261,22 +1153,7 @@ class DisplayWindow(QMainWindow):
             self.message_overlay_label.setGeometry(self.centralWidget().rect())
         if hasattr(self, 'fullscreen_button'):
             self.position_fullscreen_button()
-        # Resize video widget to match window size
-        if hasattr(self, 'video_widget') and self.video_widget:
-            self.video_widget.setGeometry(0, 0, self.width(), self.height())
         super().resizeEvent(event)
-    
-    def check_video_position(self, position):
-        """Check video position and loop at 20 seconds"""
-        # Limit to 20 seconds (20000 milliseconds)
-        if position >= 20000:
-            self.media_player.setPosition(0)
-    
-    def on_media_status_changed(self, status):
-        """Handle media status changes for looping"""
-        if status == QMediaPlayer.MediaStatus.EndOfMedia:
-            self.media_player.setPosition(0)
-            self.media_player.play()
     
     def position_fullscreen_button(self):
         """Position the fullscreen button at the bottom center"""
